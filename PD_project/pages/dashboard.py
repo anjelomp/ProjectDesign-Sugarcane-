@@ -4,100 +4,262 @@ from PIL import Image, ImageTk
 import os
 from datetime import datetime
 import threading
+import array
+import time
+import RPi.GPIO as GPIO
+
+from stepper import Stepper
+from gpiozero import DistanceSensor
+from pins import Pins
+from camera import Camera
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+
+
+
 
 class DashboardPage(Frame):
     def __init__(self, parent, *args, **kwargs):
         Frame.__init__(self, parent, *args, **kwargs)
+        
+        self.initial()
 
-        self.vid = cv2.VideoCapture(0) 
-        self.width, self.height = 800, 600
-        self.vid.set(cv2.CAP_PROP_FRAME_WIDTH, self.width) 
-        self.vid.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height) 
 
-        # Create a label for the camera preview
-        self.label_widget = Label(self, borderwidth=5, relief="ridge")
-        self.label_widget.grid(row=1, column=0, padx=10, pady=10)  
+    def initial(self):
 
-        self.capture_image = False
-        self.image_count = 0
-        self.capture_start_time = None
+        self.output = Label(self, 
+            font=("Helvetica", 16, "bold"),  # Font family, size, and style
+            state=DISABLED)
+        self.output.pack(pady=30)  
 
-        # Create a label to display the image count
-        self.count_label = Label(self, text="Images captured: 0")
-        self.count_label.grid(row=1, column=1, padx=10, pady=10)  
-
-        # Create a button to capture an image
-        self.capture_button = Button(self, text="Capture Image", command=self.toggle_capture)
-        self.capture_button.grid(row=3, column=0, padx=10, pady=10)  
-
-        # Create a button to stop capturing
-        self.stop_button = Button(self, text="Stop Capture", command=self.stop_capture, state=DISABLED)
-        self.stop_button.grid(row=4, column=0, padx=10, pady=10)  
+        self.start_button = Button(self, 
+            text="Start",
+            font=("Helvetica", 16, "bold"),  # Font family, size, and style
+            width=20,  # Number of text characters wide
+            height=2,  # Number of text lines tall
+            command=self.start_setup)
+        self.start_button.pack(pady=30)  
 
         self.bind('<Escape>', lambda e: self.master.destroy()) 
 
-        # Start the camera preview thread
-        self.camera_thread = threading.Thread(target=self.open_camera)
-        self.camera_thread.daemon = True
-        self.camera_thread.start()
 
-    def open_camera(self): 
-        while True:
-            ret, frame = self.vid.read()  # Capture the video frame by frame
-            if ret:  # Check if the frame is valid
-                opencv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA) 
-                captured_image = Image.fromarray(opencv_image)  
-                photo_image = ImageTk.PhotoImage(image=captured_image) 
-                self.label_widget.photo_image = photo_image 
-                self.label_widget.configure(image=photo_image) 
-                self.label_widget.image = photo_image  # Keep a reference to prevent garbage collection
+    def start_setup(self):
 
-    def toggle_capture(self):
-        if not self.capture_image:
-            self.capture_button.config(text="Capturing...")
-            self.stop_button.config(state=NORMAL)
-            self.capture_image = True
-            self.capture_start_time = datetime.now()  # Set the start time
-            self.capture_images_continuously()
-        else:
-            self.capture_button.config(text="Capture Image")
-            self.stop_button.config(state=DISABLED)
-            self.capture_image = False
+        self.start_button.pack_forget()
+                
+        #setup
+        try:
 
-    def capture_images_continuously(self):
-        if self.capture_image:
-            current_time = datetime.now()
-            time_difference = current_time - self.capture_start_time
-            if time_difference.total_seconds() >= 5:  # Check if 5 seconds have passed
-                self.capture_start_time = current_time  # Update the start time
-                self.capture_image_func()  # Capture an image
-            self.master.after(10, self.capture_images_continuously)  # Continue capturing images
+            #counters counter[0]--> caneCount [6]--> waitCount
+            self.counter = array.array('i',[0,0,0,0,0,0,0])
 
-    def capture_image_func(self):
-        ret, frame = self.vid.read()
-        if ret:
-            opencv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA) 
-            captured_image = Image.fromarray(opencv_image) 
-            self.save_image(captured_image)
-            self.image_count += 1
-            self.count_label.config(text=f"Images captured: {self.image_count}")
+            #Pins(pin1, pin2, pin3, r1, r2, enable, start)
+            self.pins = Pins(14,15,18,23,24,22,27)
+            self.pins.all_pin_low()
 
-    def stop_capture(self):
-        self.capture_button.config(text="Capture Image")
-        self.stop_button.config(state=DISABLED)
-        self.capture_image = False
 
-    def save_image(self, image):
-        now = datetime.now()
-        timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
-        session_path = os.path.join("captured_images")
-        if not os.path.exists(session_path):
-            os.makedirs(session_path)
-        image.save(os.path.join(session_path, f"sugarcane_image_{timestamp}.png"))
+            #motor pins/flags ena, dir, pul
+            self.stepper = Stepper(11,9,10)
+            
+            #ultrasonic
+            self.ultrasonic = DistanceSensor(echo=17, trigger=4)
 
-    def exit_app(self):
-        self.vid.release()  # Release the camera
-        self.master.destroy()
+            #camera setup
+            self.cam = Camera(0)
+            self.cam.start_camera()
+
+
+            self.output.config(text="\n\nSetup Complete. Proceed?\n")
+            self.output.config(state=NORMAL)
+            self.yes_button = Button(self, text="Yes", 
+                font=("Helvetica", 16, "bold"),  # Font family, size, and style
+                width=20,  # Number of text characters wide
+                height=2,  # Number of text lines tall
+                command=self.start_process)
+            self.yes_button.pack( side="left", padx=10) 
+            self.back_button = Button(self, text="Back", 
+                font=("Helvetica", 16, "bold"),  # Font family, size, and style
+                width=20,  # Number of text characters wide
+                height=2,  # Number of text lines tall
+                command=self.reload)
+            self.back_button.pack( side="left", padx=10) 
+ 
+
+        except Exception as e:
+            
+            self.output.config(text=f"Setup failed. Error {e}")
+            self.output.config(state=NORMAL)
+            self.back_button = Button(self, text="Back", 
+                font=("Helvetica", 16, "bold"),  # Font family, size, and style
+                width=20,  # Number of text characters wide
+                height=2,  # Number of text lines tall
+                command=self.reload)
+            self.back_button.pack(pady=30) 
+
+    def reload(self):
+         self.yes_button.pack_forget()
+         self.back_button.pack_forget()
+         self.output.pack_forget()
+         self.initial()
+
+
+    def start_process(self):
+        self.yes_button.pack_forget()
+        self.back_button.pack_forget()
+        self.output.pack_forget()
+
+        self.start_label  = Label(self, text="start:0", height = 5)
+        self.enable_label = Label(self,  text="enable:0",height = 5)
+        self.var_label    = Label(self,  text="var:no detected",height = 5)
+        self.relay_stat = Label(self,  text="relay:disabled",height = 5)
+        self.stepper_stat = Label(self,  text="conveyor:disabled",height = 5)
+        self.son_det  = Label(self,  text="sensor:no detected",height = 5)
+        self.disp = Label(self)
+        
+        self.start_label.grid(  row=0, column=0,padx=5)
+        self.enable_label.grid( row=0, column=1,padx=5)
+        self.var_label.grid(    row=0, column=2,padx=5)
+        self.relay_stat.grid(   row=0, column=3,padx=5)
+        self.stepper_stat.grid( row=1, column=0,padx=5)
+        self.son_det.grid(      row=1, column=1,padx=5)
+        self.disp.grid(      row=2, column=0,padx=5)
+        self.update()        
+
+
+        try:
+            self.var = 1 #temp
+	    #start 1
+            self.pins.start_high()
+            self.start_label.config(text="start:1")
+            self.update()            
+	    
+	    #conveyor start
+            self.thread = threading.Thread(target=self.stepper.run, daemon=True)
+            self.thread.start()
+            self.stepper.ena_low()
+            self.stepper_stat.config(text="conveyor:engaged", state=NORMAL)
+            self.update()            
+            
+            #relay 
+            self.relay_stat.config(text="relay:engaged", state=NORMAL)
+            self.update()            
+            self.pins.relay_activate()
+            self.relay_stat.config(text="relay:disabled", state=NORMAL)
+            self.update()            
+
+            while True:
+                
+
+                #detect cane within range of camera
+                dist = self.ultrasonic.distance 
+                if dist < 1.0:
+                    self.son_det.config(text="sensor: " + str(dist), state=NORMAL)
+                    self.update()            
+                    
+                    #cane count
+                    self.counter[0]+=1 
+                    
+                    #capture
+                    name= str(self.counter[0])+"_cane.jpg"
+                    self.cam.capture_image("images/"+name)
+                    image = Image.open("images/"+name)
+                    image = image.resize((100,100))
+                    photo = ImageTk.PhotoImage(image)
+                    self.disp.grid_forget()
+                    self.update()
+                    
+                    self.disp.config(image=photo)
+                    self.disp.grid(row=2, column=0,padx=5)
+                    self.update()
+                    
+
+                    #enaPin disable
+                    self.pins.enable_low()
+                    self.enable_label.config(text="enable:0")                    
+                    self.pins.reset_varPins()
+                    self.update()
+
+                    #temp ML var detection
+                    if self.var == 5:
+                            self.var = 1
+                    else:
+                            self.var += 1
+                
+                    #varPins activate, increment varCount
+                    self.counter[self.var]+=1
+                    self.pins.out_to_pins(self.var)
+                    self.var_label.config(text="variety: "+str(self.var))
+                    self.update()                    
+
+                    #enaPin enable
+                    self.pins.enable_high()
+                    self.enable_label.config(text="enable:1")
+                    self.update()
+                    
+                    self.disp.grid_forget()
+                    self.update()
+                    
+                    self.disp.config(text="cane #"+str(self.counter[0])+" Variety:"+str(self.var)+
+                            "\nVariety 1:"+str(self.counter[1])+
+                            "\nVariety 2:"+str(self.counter[2])+
+                            "\nVariety 3:"+str(self.counter[3])+
+                            "\nVariety 4:"+str(self.counter[4])+
+                            "\nVariety 5:"+str(self.counter[5]))
+                    
+                    self.disp.grid(row=2, column=0,padx=5, pady=5)
+                    self.update()
+
+                    self.relay.config(text="relay:engaged")
+                    self.update()
+                    self.pins.relay_activate()
+                    self.relay.config(text="relay:disabled")
+                    self.update()
+                    
+                    self.counter[6] = 0
+                else:
+                    self.counter[6] += 1 #wait counter
+                    if self.counter[6]==5:
+                    
+                            self.relay_stat.config(text="relay:engaged")
+                            self.update()
+                            self.pins.relay_activate()
+                            self.relay_stat.config(text="relay:disabled")
+                            self.update()
+      
+                    self.disp.config(text="Ultrasonic not in range. Count: "+str(self.counter[6]))
+                    self.update()            
+
+                    self.after(3000)
+                
+                if self.counter[6] >= 10:
+                    self.pins.start_low()
+                    self.start_label.config(text="start:0")
+
+                    self.disp.grid_forget()
+                    self.update()                    
+                    self.disp.config(text="No Cane Detected.\nSUMMARY\nTotal Cane: "+str(self.counter[0])+
+                            "\nVariety 1:"+str(self.counter[1])+
+                            "\nVariety 2:"+str(self.counter[2])+
+                            "\nVariety 3:"+str(self.counter[3])+
+                            "\nVariety 4:"+str(self.counter[4])+
+                            "\nVariety 5:"+str(self.counter[5])+
+                            "Process End")
+                    self.disp.grid(row=2, column=0,padx=5, pady=5)
+                    self.update()
+
+                    break 
+
+            # Release the webcam
+            self.cam.release()
+            self.stepper.ena_high()
+            self.stepper_stat.config(text="conveyor:disabled")
+ 
+
+        except Exception as e:
+            self.disp.config(text=f"Error {e}")
+
+
+
 
 if __name__ == "__main__":
     root = Tk()
