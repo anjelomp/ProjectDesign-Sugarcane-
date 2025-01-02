@@ -15,6 +15,9 @@ from camera import Camera
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
+import sqlite3
+from datetime import datetime
+
 
 
 
@@ -24,6 +27,25 @@ class DashboardPage(Frame):
         
         self.initial()
 
+    def db_init(self):
+        """Initialize the database."""
+        self.conn = sqlite3.connect("reports.db")
+        self.cursor = self.conn.cursor()
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_name TEXT NOT NULL,
+                variety INTEGER NOT NULL,
+                timestamp TEXT NOT NULL
+            )
+        """)
+        self.conn.commit()
+    def save_to_db(self, image_name, variety):
+        """Save image metadata to the database."""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.cursor.execute("INSERT INTO images (image_name, variety, timestamp) VALUES (?, ?, ?)",
+                            (image_name, variety, timestamp))
+        self.conn.commit()
 
     def initial(self):
 
@@ -160,9 +182,12 @@ class DashboardPage(Frame):
                     self.counter[0]+=1 
                     
                     #capture
-                    name= str(self.counter[0])+"_cane.jpg"
-                    self.cam.capture_image("images/"+name)
-                    image = Image.open("images/"+name)
+                    # name= str(self.counter[0])+"_cane.jpg"
+                    # self.cam.capture_image("images/"+name)
+                    # image = Image.open("images/"+name)
+                    image_name = str(self.counter[0])+"_cane.jpg"
+                    self.cam.capture_image(f"images/{image_name}")
+                    self.save_to_db(image_name, self.var)
                     image = image.resize((100,100))
                     photo = ImageTk.PhotoImage(image)
                     self.disp.grid_forget()

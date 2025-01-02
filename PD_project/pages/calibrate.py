@@ -324,10 +324,3 @@ class CalibratePage(Frame):
                 height=2,  # Number of text lines tall
                 command=self.start_process)
             self.back_button.pack(pady=30)
-
-
-
-
-
-
-   

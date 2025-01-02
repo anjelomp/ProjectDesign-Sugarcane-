@@ -1,12 +1,12 @@
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
-
+import sqlite3
 # Importing the DashboardPage, ReportsPage, and HelpPage classes
 from dashboard import DashboardPage
 from reports import ReportsPage
 from helps import HelpPage
-from calibrate import CalibratePage
+# from calibrate import CalibratePage
 
 PATH = Path(__file__).parent / 'assets'
 
@@ -16,12 +16,16 @@ class CaneCheckMain(tk.Frame):
         super().__init__(master, **kwargs)
         self.pack(fill=tk.BOTH, expand=tk.YES)
 
+        self.conn = sqlite3.connect('canecheck.db')
+        self.cursor = self.conn.cursor()
+        self.create_tables()
+
         # Application images
         self.images = [
             tk.PhotoImage(name='logo', file=PATH / 'sugarcane.png'),
-            tk.PhotoImage(name='dashboard', file=PATH / 'dashboard_icon.png'),
-            tk.PhotoImage(name='reports', file=PATH / 'reports_icon.png'),
-            tk.PhotoImage(name='help', file=PATH / 'help_icon.png')
+            tk.PhotoImage(name='dashboard', file=PATH / 'dashboard_icon.png').subsample(3, 3),
+            tk.PhotoImage(name='reports', file=PATH / 'reports_icon.png').subsample(3, 3),
+            tk.PhotoImage(name='help', file=PATH / 'help_icon.png').subsample(3, 3)
         ]
 
         # Header
@@ -34,7 +38,7 @@ class CaneCheckMain(tk.Frame):
             bg='#9E8DB9',
             borderwidth=0
         )
-        hdr_label.pack(side=tk.LEFT, padx=20, pady=20)
+        hdr_label.pack(side=tk.LEFT, padx=0, pady=10)
 
         logo_text = tk.Label(
             master=hdr_frame,
@@ -43,10 +47,10 @@ class CaneCheckMain(tk.Frame):
             bg='#9E8DB9',
             fg='white'  # Adjust text color
         )
-        logo_text.pack(side=tk.TOP, padx=10, pady=20)
+        logo_text.pack(side=tk.LEFT, fill=tk.X, padx=5, pady=5)
 
         # Sidebar
-        sidebar_frame = tk.Frame(self, bg='dark gray', width=200)
+        sidebar_frame = tk.Frame(self, bg='dark gray', width=100)
         sidebar_frame.pack(side=tk.LEFT, fill=tk.Y)
 
         # Action buttons
@@ -63,17 +67,32 @@ class CaneCheckMain(tk.Frame):
                 bg='dark gray',
                 command=lambda page_name=page_name: self.show_page(page_name)
             )
-            button.pack(fill=tk.X, padx=10, pady=10)
+            button.pack(fill=tk.X, padx=5, pady=5)
 
         # Create and add pages to the dictionary
         self.pages["Dashboard"] = DashboardPage(self)
-        self.pages["Calibrate"] = CalibratePage(self)
+        # self.pages["Calibrate"] = CalibratePage(self)
         self.pages["Reports"] = ReportsPage(self)
         
 
         # Show the initial page
         self.show_page("Dashboard")
 
+    def create_tables(self):
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS Session (
+                                Session_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                                SessionName TEXT,
+                                StartTime TEXT,
+                                EndTime TEXT)''')
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS SessionDetail (
+                                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                                Session_ID INTEGER,
+                                Sequence INTEGER,
+                                FileName TEXT,
+                                Variety_ID TEXT,
+                                ImageData TEXT,
+                                FOREIGN KEY(Session_ID) REFERENCES Session(Session_ID))''')
+        self.conn.commit()
     def show_page(self, page_name):
         # Hide all pages
         for page in self.pages.values():
