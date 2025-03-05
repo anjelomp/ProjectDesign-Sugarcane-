@@ -20,6 +20,7 @@ import os
 
 #from components import Components
 from db import DbPage
+from ml import MachineLearning
 
 
 
@@ -57,7 +58,9 @@ class DashboardPage(Frame):
             self.db = DbPage()
             self.db.setup()
 
-            #intial variables
+            #setup ML weights
+            self.ml = MachineLearning
+            self.ml.setup()
 
         
             status_vars['prompt'].set('Setup Successful')
@@ -69,11 +72,11 @@ class DashboardPage(Frame):
 ###############################################################################################
 
         try:
-            self.var = 1 #temp
+            #self.var = 1 #temp
 	        #start 1
             self.pins.start_high()
             self.pins.enable_low()
-            self.status_vars['system'].set("Enabled")
+            status_vars['system'].set("Enabled")
             #self.enable = 0
 	    
 	        #conveyor start
@@ -98,11 +101,11 @@ class DashboardPage(Frame):
                      
                     status_vars['sensor'].set(round(dist,2))    
                     #cane count
-                    i=counter_vars[0].get()
-                    counter_vars[0].set(i+1)
+                    
+                    counter_vars[0].set(counter_vars[0].get()+1)
                     
                     #capture
-                    imgName.set(str(self.counter_vars[0].get())+"_cane.jpg")
+                    imgName.set(str(counter_vars[0].get())+"_cane.jpg")
                     self.cam.capture_image("images/"+self.imgname)
                     self.update_camera_placeholder()
                     self.update()
@@ -113,71 +116,75 @@ class DashboardPage(Frame):
                     #self.enable = 0
                     
                     self.pins.reset_varPins()
-                    self.status_vars['variety'].set(None)
+                    status_vars['variety'].set(None)
 
+                    '''' 
                     #temp ML var detection 
                     #self.var detecte variety
+                                   
                     if self.var == 5:
                             self.var = 1
                     else:
-                            self.var += 1
+                            self.var += 1'''
+                    
+                    #ML Detection
+                    self.var = self.ml.predict("images/"+self.imgname)
                 
                     #varPins activate, increment varCount
 
-                    j=self.counter_vars[self.var]
-                    self.counter_vars[self.var].set(j+1)
+                    counter_vars[self.var].set(counter_vars[self.var].get()+1)
 
-                    self.status_vars['variety'].set(self.var)
+                    status_vars['variety'].set(self.var)
                     self.pins.out_to_pins(self.var)
 
                     #enaPin enable
                     self.pins.enable_high()
                     
                     
-                    self.status_vars['actuator'].set("Active")
+                    status_vars['actuator'].set("Active")
                     self.pins.relay_activate()
-                    self.status_vars['actuator'].set("Inactive")
+                    status_vars['actuator'].set("Inactive")
 
                     
-                    self.counter_vars[6].set(0)
+                    counter_vars[6].set(0)
                     dist = None
-                    self.status_vars['sensor'].set(None)
+                    status_vars['sensor'].set(None)
 
                     #self.update_disp()
                 else:
-                    k = self.counter_vars[6].get() #wait counter
-                    self.counter_vars[6].set(k+1)
 
-                    if self.counter_vars[6].get() == 5:
+                    counter_vars[6].set(counter_vars[6].get()+1)
+
+                    if counter_vars[6].get() == 5:
                             
-                        self.status_vars['actuator'].set("Active")
+                        status_vars['actuator'].set("Active")
                         self.pins.relay_activate()
-                        self.status_vars['actuator'].set("Inactive")
+                        status_vars['actuator'].set("Inactive")
       
                     #display Ultrasonic not in range. Count: #
-                    self.status_vars['prompt'].set("No cane detected.")
+                    status_vars['prompt'].set("No cane detected.")
                     #self.update()            
 
                     self.after(2000)
                 
-                if self.counter_vars[6] >= 10:
+                if counter_vars[6].get() >= 10:
                     self.pins.start_low()
                       
                     # display 
-                    self.status_vars['prompt'].set("No cane detected")
+                    status_vars['prompt'].set("No cane detected")
                     break 
 
             # Release the webcam
             self.cam.release()
             self.stepper.ena_high()
-            self.status_vars['conveyor'].set("Running")
+            status_vars['conveyor'].set("Running")
 
 
         except Exception as e:
             self.disp.grid_forget()
             self.update()
             
-            self.status_vars['prompt'].set(f"Error {e}")
+            status_vars['prompt'].set(f"Error {e}")
             #self.disp.config(text=)
             self.disp.grid(row=2, column=0)
 
@@ -189,8 +196,8 @@ class DashboardPage(Frame):
 
         self.imgname = "holder.jpg"
         
-        self.counter_vars = [IntVar(value=0) for _ in range(7)]  # Index 0: total, 1-5: varieties
-        self.status_vars = {
+        counter_vars = [IntVar(value=0) for _ in range(7)]  # Index 0: total, 1-5: varieties
+        status_vars = {
             'sensor': IntVar(value=0),
             'variety': IntVar(value=None),
             'conveyor': StringVar(value="Stopped"),
@@ -201,20 +208,20 @@ class DashboardPage(Frame):
 
     
   
-
+    '''
     # Raspberry Pi integration methods
     def update_sensor_status(self, status):
-        self.status_vars['sensor'].set(status)
+        status_vars['sensor'].set(status)
     
     def update_variety(self, variety):
-        self.status_vars['variety'].set(variety)
+        status_vars['variety'].set(variety)
     
     def increment_counter(self, variety_index=0):
         """Increment counters (0 = total, 1-5 = specific varieties)"""
         if 0 <= variety_index <= 5:
-            self.counter_vars[variety_index].set(self.counter_vars[variety_index].get() + 1)
+            counter_vars[variety_index].set(counter_vars[variety_index].get() + 1)
         if variety_index != 0:
-            self.counter_vars[0].set(self.counter_vars[0].get() + 1)
+            counter_vars[0].set(counter_vars[0].get() + 1)'''
 
 if __name__ == "__main__":
     root = Tk()
