@@ -1,4 +1,4 @@
-# import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO
 import time
 
 GPIO.setmode(GPIO.BCM)
@@ -6,7 +6,7 @@ GPIO.setmode(GPIO.BCM)
 
 class Pins:
     
-    def __init__(self, pin3, pin2, pin1, r1, r2, enable, start):
+    def __init__(self, pin1, pin2, pin3, r1, r2, enable, start):
         self.pin1 = pin1
         self.pin2 = pin2
         self.pin3 = pin3

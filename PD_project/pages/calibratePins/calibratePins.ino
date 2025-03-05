@@ -6,7 +6,7 @@ const int trig = 6;
 
 //relay pins
 const int r1 = 7;
-const int r2 = 8;
+const int r2 = 8; 
 
 // conveyor pin assignments
 const int motor_step = 11;
@@ -30,8 +30,8 @@ int position = 1;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(trig, OUTPUT);
-  pinMode(echo, INPUT);
+  pinMode(5, OUTPUT);
+  pinMode(6, INPUT);
 
 //relay
   pinMode(r1, OUTPUT);
@@ -51,7 +51,7 @@ void setup() {
   pinMode(v2Pin, INPUT);
   pinMode(v3Pin, INPUT);
   
-  digitalWrite(trig, HIGH);
+  digitalWrite(6, LOW);
   
   Serial.println("Setup Complete");
 
@@ -61,8 +61,8 @@ void loop() {
 
   
   Serial.println("-----------------");
-  caneIn = digitalRead(echo);
-  Serial.print("echo: ");
+  caneIn = digitalRead(6);
+  Serial.print("echo:  ");
   Serial.println(caneIn);
 
   start = digitalRead(startPin);
@@ -71,7 +71,7 @@ void loop() {
   
   
   ena = digitalRead(enaPin);
-  Serial.print("ena: ");
+  Serial.print("ena:   ");
   Serial.println(ena);
 
   

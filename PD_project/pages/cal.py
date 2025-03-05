@@ -7,7 +7,7 @@ import threading
 from stepper import Stepper
 from gpiozero import DistanceSensor
 from pins import Pins
-#from camera import Camera
+from camera import Camera
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
@@ -26,8 +26,8 @@ try:
     ultrasonic = DistanceSensor(echo=17, trigger=4)
 
     #camera setup
-    #cam = Camera(0)
-    #cam.start_camera()
+    cam = Camera(0)
+    cam.start_camera()
 
 
     print("\n\nSetup Complete. Proceed?\n")
