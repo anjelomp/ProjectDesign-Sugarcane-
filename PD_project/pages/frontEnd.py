@@ -198,7 +198,7 @@ class UiPage(Frame):
             self.counter_vars[variety_index].set(self.counter_vars[variety_index].get() + 1)
         if variety_index != 0:
             self.counter_vars[0].set(self.counter_vars[0].get() + 1)
-"""
+
 if __name__ == "__main__":
     root = Tk()
     root.title("CaneCheck")
@@ -210,4 +210,3 @@ if __name__ == "__main__":
     reports_page.pack(fill="both", expand=True)
     
     root.mainloop()
-"""
