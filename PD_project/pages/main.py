@@ -1,213 +1,176 @@
-
-
-import RPi.GPIO as GPIO
-from stepper import Stepper
-from gpiozero import DistanceSensor
-from pins import Pins
-from camera import Camera
-
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-
-
+import sqlite3
+import datetime
 import threading
-
 import tkinter as tk
-from tkinter import *
-from tkinter import ttk
-from PIL import Image, ImageTk 
-import os
-
-#from components import Components
+from tkinter import Frame, Tk
+from gpiozero import DistanceSensor
+from camera import Camera
+from pins import Pins
+from stepper import Stepper
 from db import DbPage
 from ml import MachineLearning
 
-
-
-# solution for pathing error
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
-
-
 class DashboardPage(Frame):
-    def __init__(self, parent, counter_vars, status_vars, imgName, *args, **kwargs):
+    def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
 
-        status_vars['prompt'].set("Setting Up")      
-        imgName.set("holder.jpg")
+        # Setup UI variables
+        self.status_vars = {
+            'prompt': tk.StringVar(value="Setting Up"),
+            'system': tk.StringVar(value="Disabled"),
+            'conveyor': tk.StringVar(value="Stopped"),
+            'actuator': tk.StringVar(value="Inactive"),
+            'variety': tk.StringVar(value="None"),
+            'sensor': tk.DoubleVar(value=0)
+        }
+        self.counter_vars = [tk.IntVar(value=0) for _ in range(7)]  # 0: total, 1-5: varieties, 6: no detection count
+        self.imgName = tk.StringVar(value="holder.jpg")
+        self.imgname = "holder.jpg"  # used for constructing image file names
 
+        # data storage
+        self.detections = []
 
-        
         try:
-        
-            #Pins(pin1, pin2, pin3, r1, r2, enable, start)
-            self.pins = Pins(14,15,18,23,24,22,27)
+            # Initialize hardware and components
+            self.pins = Pins(14, 15, 18, 23, 24, 22, 27)
             self.pins.all_pin_low()
-
-
-            #motor pins/flags ena, dir, pul
-            self.stepper = Stepper(11,9,10)
-            
-            #ultrasonic
+            self.stepper = Stepper(11, 9, 10)
             self.ultrasonic = DistanceSensor(echo=17, trigger=4)
-
-            #camera setup
             self.cam = Camera(0)
             self.cam.start_camera()
-  
             self.db = DbPage()
             self.db.setup()
-
-            #setup ML weights
             self.ml = MachineLearning
             self.ml.setup()
 
-        
-            status_vars['prompt'].set('Setup Successful')
-            
+            # Start a new session in the DB
+            start_time = datetime.datetime.now().isoformat()
+            self.db.cursor.execute("INSERT INTO Session (session_name, start_time) VALUES (?, ?)",
+                                   ("Session A", start_time))
+            self.db.conn.commit()
+            self.session_id = self.db.cursor.lastrowid  # Get the session id for linking detections
+            self.sequence = 0  # To track order within this session
+
+            self.status_vars['prompt'].set("Setup Successful")
         except Exception as e:
-            status_vars['prompt'].set(f"Error {e}")
+            self.status_vars['prompt'].set(f"Error during setup: {e}")
 
-#main algorithm        
-###############################################################################################
+        # Start the main detection thread (to avoid blocking the GUI)
+        detection_thread = threading.Thread(target=self.run_detection_loop, daemon=True)
+        detection_thread.start()
 
+    def run_detection_loop(self):
         try:
-            #self.var = 1 #temp
-	        #start 1
+            # Start the conveyor and enable system components
             self.pins.start_high()
             self.pins.enable_low()
-            status_vars['system'].set("Enabled")
-            #self.enable = 0
-	    
-	        #conveyor start
-            self.thread = threading.Thread(target=self.stepper.run, daemon=True)
-            self.thread.start()
+            self.status_vars['system'].set("Enabled")
+            thread = threading.Thread(target=self.stepper.run, daemon=True)
+            thread.start()
             self.stepper.ena_low()
-            status_vars['conveyor'].set("Running")
-            #self.conv = 1
-            
-            #relay 
-            #self.act = 1
-            status_vars['actuator'].set("Active")
+            self.status_vars['conveyor'].set("Running")
+            self.status_vars['actuator'].set("Active")
             self.pins.relay_activate()
-            status_vars['actuator'].set("Inactive")
+            self.status_vars['actuator'].set("Inactive")
 
+            # Main detection loop
             while True:
-                
-
-                #detect cane within range of camera
-                dist = self.ultrasonic.distance 
+                dist = self.ultrasonic.distance
                 if dist < 1.0:
-                     
-                    status_vars['sensor'].set(round(dist,2))    
-                    #cane count
-                    
-                    counter_vars[0].set(counter_vars[0].get()+1)
-                    
-                    #capture
-                    imgName.set(str(counter_vars[0].get())+"_cane.jpg")
-                    self.cam.capture_image("images/"+self.imgname)
-                    self.update_camera_placeholder()
-                    self.update()
-                    
+                    self.status_vars['sensor'].set(round(dist, 2))
+                    # Increment total cane counter
+                    self.counter_vars[0].set(self.counter_vars[0].get() + 1)
 
-                    #enaPin disable
+                    # Build image filename
+                    current_count = self.counter_vars[0].get()
+                    self.imgname = f"{current_count}_cane.jpg"
+                    self.imgName.set(self.imgname)
+
+                    # Capture image
+                    self.cam.capture_image("images/" + self.imgname)
+
+                    # Reset and update system pins
                     self.pins.enable_low()
-                    #self.enable = 0
-                    
                     self.pins.reset_varPins()
-                    status_vars['variety'].set(None)
+                    self.status_vars['variety'].set("None")
 
-                    '''' 
-                    #temp ML var detection 
-                    #self.var detecte variety
-                                   
-                    if self.var == 5:
-                            self.var = 1
-                    else:
-                            self.var += 1'''
-                    
-                    #ML Detection
-                    self.var = self.ml.predict("images/"+self.imgname)
-                
-                    #varPins activate, increment varCount
+                    # Run ML detection (returns a variety as an integer, e.g., 1 to 5)
+                    self.var = self.ml.predict("images/" + self.imgname)
 
-                    counter_vars[self.var].set(counter_vars[self.var].get()+1)
+                    # Update variety counter
+                    self.counter_vars[self.var].set(self.counter_vars[self.var].get() + 1)
+                    self.status_vars['variety'].set(str(self.var))
 
-                    status_vars['variety'].set(self.var)
+                    # Activate output pins based on detected variety
                     self.pins.out_to_pins(self.var)
-
-                    #enaPin enable
                     self.pins.enable_high()
-                    
-                    
-                    status_vars['actuator'].set("Active")
+
+                    self.status_vars['actuator'].set("Active")
                     self.pins.relay_activate()
-                    status_vars['actuator'].set("Inactive")
+                    self.status_vars['actuator'].set("Inactive")
 
-                    
-                    counter_vars[6].set(0)
-                    dist = None
-                    status_vars['sensor'].set(None)
+                    # Buffer the detection event instead of immediate DB insertion
+                    self.sequence += 1
+                    detection_time = datetime.datetime.now().isoformat()
+                    detection_record = (self.session_id, self.sequence, detection_time, "images/" + self.imgname, self.var)
+                    self.detections.append(detection_record)
 
-                    #self.update_disp()
+                    # Reset sensor indicator for this cycle
+                    self.counter_vars[6].set(0)
+                    self.status_vars['sensor'].set(0)
+
                 else:
+                    # Increase the count for "no detection" cycles
+                    self.counter_vars[6].set(self.counter_vars[6].get() + 1)
 
-                    counter_vars[6].set(counter_vars[6].get()+1)
-
-                    if counter_vars[6].get() == 5:
-                            
-                        status_vars['actuator'].set("Active")
+                    if self.counter_vars[6].get() == 5:
+                        self.status_vars['actuator'].set("Active")
                         self.pins.relay_activate()
-                        status_vars['actuator'].set("Inactive")
-      
-                    #display Ultrasonic not in range. Count: #
-                    status_vars['prompt'].set("No cane detected.")
-                    #self.update()            
+                        self.status_vars['actuator'].set("Inactive")
+                        self.status_vars['prompt'].set("No cane detected.")
+                        self.after(2000)  # Pause for 2 seconds
 
-                    self.after(2000)
-                
-                if counter_vars[6].get() >= 10:
-                    self.pins.start_low()
-                      
-                    # display 
-                    status_vars['prompt'].set("No cane detected")
-                    break 
+                    if self.counter_vars[6].get() >= 10:
+                        self.pins.start_low()
+                        self.status_vars['prompt'].set("No cane detected - Ending Session")
+                        break  # End the loop if no cane detected for a while
 
-            # Release the webcam
+            # End of session: batch insert buffered detection events
+            if self.detections:
+                sql = """
+                    INSERT INTO Detection (session_id, sequence, detection_time, image_file, variety_id)
+                    VALUES (?, ?, ?, ?, ?)
+                """
+                self.db.cursor.executemany(sql, self.detections)
+                self.db.conn.commit()
+
+            # Update session end time
+            end_time = datetime.datetime.now().isoformat()
+            self.db.cursor.execute("UPDATE Session SET end_time = ? WHERE session_id = ?",
+                                   (end_time, self.session_id))
+            self.db.conn.commit()
+
+            # Cleanup hardware
             self.cam.release()
             self.stepper.ena_high()
-            status_vars['conveyor'].set("Running")
-
+            self.status_vars['conveyor'].set("Stopped")
 
         except Exception as e:
-            self.disp.grid_forget()
-            self.update()
-            
-            status_vars['prompt'].set(f"Error {e}")
-            #self.disp.config(text=)
-            self.disp.grid(row=2, column=0)
+            self.status_vars['prompt'].set(f"Error during detection: {e}")
+
+if __name__ == "__main__":
+    root = Tk()
+    root.title("CaneCheck")
+    root.minsize(800, 600)
+    root.geometry("1024x768")
+    root.configure(bg="white")
+
+    dashboard = DashboardPage(root)
+    dashboard.pack(fill="both", expand=True)
+
+    root.mainloop()
 
 
-
-###############################################################################################
-
-    def setup_vars(self):
-
-        self.imgname = "holder.jpg"
-        
-        counter_vars = [IntVar(value=0) for _ in range(7)]  # Index 0: total, 1-5: varieties
-        status_vars = {
-            'sensor': IntVar(value=0),
-            'variety': IntVar(value=None),
-            'conveyor': StringVar(value="Stopped"),
-            'actuator': StringVar(value="Inactive"),
-            'system': StringVar(value="Disabled"),
-            'prompt': StringVar(value="")
-        }
-
-    
-  
     '''
     # Raspberry Pi integration methods
     def update_sensor_status(self, status):
@@ -222,15 +185,3 @@ class DashboardPage(Frame):
             counter_vars[variety_index].set(counter_vars[variety_index].get() + 1)
         if variety_index != 0:
             counter_vars[0].set(counter_vars[0].get() + 1)'''
-
-if __name__ == "__main__":
-    root = Tk()
-    root.title("CaneCheck")
-    root.minsize(800, 600)  
-    root.geometry("1024x768")
-    root.configure(bg="white")
-    
-    reports_page = DashboardPage(root)
-    reports_page.pack(fill="both", expand=True)
-    
-    root.mainloop()
