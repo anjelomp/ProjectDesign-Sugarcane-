@@ -32,6 +32,8 @@ class DashboardPage(Frame):
 
         try:
             # Initialize hardware and components
+            # Pins(varpin3, varpin2, varpin1, actuator1, actuator2, enable, start)
+            #pins to arduino = varpin3, varpin2, varpin1, enable, start
             self.pins = Pins(14, 15, 18, 23, 24, 22, 27)
             self.pins.all_pin_low()
             self.stepper = Stepper(11, 9, 10)
