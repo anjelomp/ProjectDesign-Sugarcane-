@@ -16,7 +16,7 @@ GPIO.setwarnings(False)
 try:
 
     #Pins(pin1, pin2, pin3, r1, r2, enable, start)
-    pins = Pins(14,15,18,23,24,22,27)
+    pins = Pins(18,15,14,27,22,23,24)
 
 
     #motor pins/flags ena, dir, pul
