@@ -56,7 +56,7 @@ class UiPage(Frame):
 
         # Camera Section
         self.camera_frame = Frame(main_container, bg=CARD_COLOR, bd=2, relief=RAISED)
-        self.camera_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+        self.camera_frame.grid(row=0, column=0,  sticky="nsew")
         self.init_camera_display()
 
         # Status Section
@@ -116,12 +116,12 @@ class UiPage(Frame):
 
     def update_camera_placeholder(self):
         try:
-            max_w = max(1, self.camera_frame.winfo_width() - 20)
-            max_h = max(1, self.camera_frame.winfo_height() - 20)
+            max_w = max(1, self.camera_frame.winfo_width()+125)
+            max_h = max(1, self.camera_frame.winfo_height()+125)
             img = Image.open("images/holder.jpg")
             
             # Maintain aspect ratio while fitting to available space
-            img.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
+            img.thumbnail((max_w, max_h))
             
             self.camera_image = ImageTk.PhotoImage(img)
             self.camera_label.configure(image=self.camera_image)
