@@ -31,7 +31,7 @@ class UiPage(Frame):
         self.setup_ui()
         self.bind_events()
         
-        self.dash = DashboardPage(self,self.counter_vars, self.status_vars, self.imgName)
+        self.dash = DashboardPage(self)
 
 
 #functions      
