@@ -29,7 +29,7 @@ class CaneCheckMain(tk.Frame):
         self.images[0]= self.images[0].subsample(2)
         
         # Sidebar
-        sidebar_frame = tk.Frame(self, bg='#9E8DB9', width=200)
+        sidebar_frame = tk.Frame(self, bg='#9E8DB9', width=50)
         sidebar_frame.pack(side=tk.LEFT, fill=tk.Y)
 	
         #logo    
@@ -48,7 +48,7 @@ class CaneCheckMain(tk.Frame):
             borderwidth=0 )
 
         logo.grid(row = 0, column = 0, pady = 15)
-        logo_text.grid(row = 0, column = 1,  padx=5, pady=15)
+        #logo_text.grid(row = 0, column = 1,  padx=5, pady=15)
 
                 
         # Action buttons
@@ -78,7 +78,7 @@ class CaneCheckMain(tk.Frame):
                 highlightthickness = 0, bd = 0,
                 command=lambda page_name=page_name: self.show_page(page_name))
             
-            text_button.grid(row = rownum, column = 1, pady = 2, sticky ='w')
+            #text_button.grid(row = rownum, column = 1, pady = 2, sticky ='w')
             logo_button.grid(row=rownum, column = 0, pady = 2)
             rownum +=1
             
