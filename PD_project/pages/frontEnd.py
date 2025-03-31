@@ -31,7 +31,6 @@ class UiPage(Frame):
         self.setup_ui()
         self.bind_events()
         
-        self.dash = DashboardPage(self)
 
 
 #functions      
@@ -100,6 +99,13 @@ class UiPage(Frame):
         
         for text, var, *font in status_items:
             self.create_status_row(card, text, var, font[0] if font else FONTS['body'])
+        self.strtBtn = Button(card, text = "Start", command= self.startButton)
+        self.strtBtn.pack(fill="x")
+    
+    def startButton(self):
+        self.strtBtn.destroy()
+        DashboardPage(self)
+
 
     def init_camera_display(self):
         """Initialize camera display with dynamic sizing"""
@@ -112,7 +118,6 @@ class UiPage(Frame):
         try:
             max_w = max(1, self.camera_frame.winfo_width() - 20)
             max_h = max(1, self.camera_frame.winfo_height() - 20)
-            self.imgName = StringVar(value="holder.jpg")
             img = Image.open("images/holder.jpg")
             
             # Maintain aspect ratio while fitting to available space
