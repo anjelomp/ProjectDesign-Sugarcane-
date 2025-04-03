@@ -21,6 +21,7 @@ class MachineLearning:
         img_array /= 255.0  # Normalize pixel values
 
         # Make a prediction
+        
         predictions = self.model.predict(img_array)
         predicted_class = np.argmax(predictions, axis=1)[0]  # Get class with highest probability
         return predicted_class

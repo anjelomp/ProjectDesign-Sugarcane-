@@ -3,6 +3,7 @@
 from tkinter import *
 from tkinter import ttk
 from PIL import Image, ImageTk 
+import threading
 import os
 
 from main import DashboardPage
@@ -21,6 +22,13 @@ FONTS = {
     'large': ("Lexend", 24, "bold")
 }
 
+#global vars
+
+counter_vars = []  # Index 0: total, 1-5: varieties
+
+status_vars = {}
+
+
 class UiPage(Frame):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
@@ -37,16 +45,20 @@ class UiPage(Frame):
     def setup_var(self):
         self.configure(bg=BG_COLOR)
         
-        
-        self.counter_vars = [IntVar(value=0) for _ in range(7)]  # Index 0: total, 1-5: varieties
-        self.status_vars = {
+        counter = [IntVar(value=0) for _ in range(7)]  # Index 0: total, 1-5: varieties
+        counter_vars.extend(counter)
+	
+        status = {
             'sensor': StringVar(value="Ready"),
             'variety': StringVar(value="-"),
             'conveyor': StringVar(value="Stopped"),
             'actuator': StringVar(value="Inactive"),
             'system': StringVar(value="Enabled"),
-            'prompt': StringVar(value="")
+            'prompt': StringVar(value=""),
+            'img': StringVar(value="holder.jpg")
         }
+        status_vars.update(status)
+        status_vars['img'].trace("w", self.update_camera_placeholder)
 
 
     def setup_ui(self):
@@ -88,23 +100,26 @@ class UiPage(Frame):
             bg=CARD_COLOR, fg=PRIMARY_COLOR).pack(anchor=NW)
         
         status_items = [
-            ("Live Count", self.counter_vars[0], FONTS['large']),
-            ("Sensor Status", self.status_vars['sensor']),
-            ("Detected Variety", self.status_vars['variety']),
-            ("Conveyor", self.status_vars['conveyor']),
-            ("Actuator", self.status_vars['actuator']),
-            ("System", self.status_vars['system']),
-            ("", self.status_vars['prompt'], FONTS['large'])
+            ("Live Count", counter_vars[0], FONTS['large']),
+            ("Sensor Status", status_vars['sensor']),
+            ("Detected Variety", status_vars['variety']),
+            ("Conveyor", status_vars['conveyor']),
+            ("Actuator", status_vars['actuator']),
+            ("System", status_vars['system']),
+            ("", status_vars['prompt'])
         ]
         
         for text, var, *font in status_items:
             self.create_status_row(card, text, var, font[0] if font else FONTS['body'])
+        
         self.strtBtn = Button(card, text = "Start", command= self.startButton)
         self.strtBtn.pack(fill="x")
     
     def startButton(self):
         self.strtBtn.destroy()
-        DashboardPage(self)
+        algo = DashboardPage()
+        algo_thread = threading.Thread(target=algo.start, args= (counter_vars,status_vars), daemon=True)
+        algo_thread.start()
 
 
     def init_camera_display(self):
@@ -114,11 +129,12 @@ class UiPage(Frame):
         self.camera_label.pack(fill=BOTH, expand=True)
         self.update_camera_placeholder()
 
-    def update_camera_placeholder(self):
+    def update_camera_placeholder(self, *args):
         try:
-            max_w = max(1, self.camera_frame.winfo_width()+125)
-            max_h = max(1, self.camera_frame.winfo_height()+125)
-            img = Image.open("images/holder.jpg")
+            max_w = max(1, self.camera_frame.winfo_width())
+            max_h = max(1, self.camera_frame.winfo_height())
+            name = "images/"+ status_vars['img'].get()
+            img = Image.open(name)
             
             # Maintain aspect ratio while fitting to available space
             img.thumbnail((max_w, max_h))
@@ -128,7 +144,7 @@ class UiPage(Frame):
 
         except Exception as e:
             print(f"Error updating camera: {e}")
-
+            return
     def on_window_resize(self, event):
         """Handle window resize events with debounce"""
         if event.widget == self:
@@ -143,13 +159,13 @@ class UiPage(Frame):
                 bg=CARD_COLOR, fg=PRIMARY_COLOR).pack(anchor=NW)
             
             status_items = [
-                ("Live Count", self.counter_vars[0], FONTS['large']),
-                ("Sensor Status", self.status_vars['sensor']),
-                ("Detected Variety", self.status_vars['variety']),
-                ("Conveyor", self.status_vars['conveyor']),
-                ("Actuator", self.status_vars['actuator']),
-                ("System", self.status_vars['system']),
-                ("", self.status_vars['prompt'], FONTS['large'])
+                ("Live Count", counter_vars[0], FONTS['large']),
+                ("Sensor Status", status_vars['sensor']),
+                ("Detected Variety", status_vars['variety']),
+                ("Conveyor", status_vars['conveyor']),
+                ("Actuator", status_vars['actuator']),
+                ("System", status_vars['system']),
+                ("", status_vars['prompt'])
             ]
             
             for text, var, *font in status_items:
@@ -161,7 +177,7 @@ class UiPage(Frame):
         container.pack(fill=BOTH, expand=True)
         
         varieties = ["Variety 1", "Variety 2", "Variety 3", "Variety 4", "Variety 5"]
-        for col, (variety, var) in enumerate(zip(varieties, self.counter_vars[1:6])):
+        for col, (variety, var) in enumerate(zip(varieties, counter_vars[1:6])):
             card = Frame(container, bg=CARD_COLOR, padx=10, pady=5)
             card.grid(row=0, column=col, padx=2, sticky="nsew")
             container.grid_columnconfigure(col, weight=1)
@@ -178,8 +194,12 @@ class UiPage(Frame):
         
         Label(row, text=label+":", font=FONTS['body'], 
               bg=CARD_COLOR, fg=PRIMARY_COLOR, width=12, anchor=W).pack(side=LEFT)
-        Label(row, textvariable=var, font=font, 
-              bg=CARD_COLOR, fg=SECONDARY_COLOR, wraplength=300).pack(side=LEFT)
+        if label == "":
+           Label(row, textvariable=var, font=("Arial",10), 
+              bg=CARD_COLOR, fg=SECONDARY_COLOR, wraplength = 200).pack(side=LEFT)
+        else:	      
+           Label(row, textvariable=var, font=font, 
+              bg=CARD_COLOR, fg=SECONDARY_COLOR).pack(side=LEFT)
 
     def bind_events(self):
         """Bind window resize events"""
@@ -192,17 +212,17 @@ class UiPage(Frame):
 
     # Raspberry Pi integration methods
     def update_sensor_status(self, status):
-        self.status_vars['sensor'].set(status)
+        status_vars['sensor'].set(status)
     
     def update_variety(self, variety):
-        self.status_vars['variety'].set(variety)
+        status_vars['variety'].set(variety)
     
     def increment_counter(self, variety_index=0):
         """Increment counters (0 = total, 1-5 = specific varieties)"""
         if 0 <= variety_index <= 5:
-            self.counter_vars[variety_index].set(self.counter_vars[variety_index].get() + 1)
+            counter_vars[variety_index].set(counter_vars[variety_index].get() + 1)
         if variety_index != 0:
-            self.counter_vars[0].set(self.counter_vars[0].get() + 1)
+            counter_vars[0].set(counter_vars[0].get() + 1)
 
 if __name__ == "__main__":
     root = Tk()

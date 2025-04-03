@@ -2,6 +2,8 @@ import sqlite3
 import datetime
 import threading
 import tkinter as tk
+import random
+
 from tkinter import Frame, Tk
 from gpiozero import DistanceSensor
 from camera import Camera
@@ -11,25 +13,15 @@ from db import DbPage
 from ml import MachineLearning
 
 class DashboardPage(Frame):
-    def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, *args, **kwargs)
-
-        # Setup UI variables
-        self.status_vars = {
-            'prompt': tk.StringVar(value="Setting Up"),
-            'system': tk.StringVar(value="Disabled"),
-            'conveyor': tk.StringVar(value="Stopped"),
-            'actuator': tk.StringVar(value="Inactive"),
-            'variety': tk.StringVar(value="None"),
-            'sensor': tk.DoubleVar(value=0)
-        }
-        self.counter_vars = [tk.IntVar(value=0) for _ in range(7)]  # 0: total, 1-5: varieties, 6: no detection count
-        self.imgName = tk.StringVar(value="holder.jpg")
-        self.imgname = "holder.jpg"  # used for constructing image file names
+    def __init__(self,  *args, **kwargs):
+        super().__init__( *args, **kwargs)
+        
+    def start(self,counter_vars,status_vars):
+        self.counter_vars = counter_vars
+        self.status_vars = status_vars
 
         # data storage
         self.detections = []
-
         try:
             # Initialize hardware and components
             # Pins(varpin3, varpin2, varpin1, actuator1, actuator2, enable, start)
@@ -42,8 +34,8 @@ class DashboardPage(Frame):
             self.cam.start_camera()
             self.db = DbPage()
             self.db.setup()
-            self.ml = MachineLearning
-            self.ml.setup()
+            self.ml = MachineLearning()
+            #self.ml.setup()
 
             # Start a new session in the DB
             start_time = datetime.datetime.now().isoformat()
@@ -53,64 +45,75 @@ class DashboardPage(Frame):
             self.session_id = self.db.cursor.lastrowid  # Get the session id for linking detections
             self.sequence = 0  # To track order within this session
 
-            self.status_vars['prompt'].set("Setup Successful")
+            self.after(0,self.status_vars['prompt'].set("Setup Successful"))
         except Exception as e:
-            self.status_vars['prompt'].set(f"Error during setup: {e}")
-
+            self.after(0,self.status_vars['prompt'].set(f"Error during setup: {e}"))
+            return
         # Start the main detection thread (to avoid blocking the GUI)
-        detection_thread = threading.Thread(target=self.run_detection_loop, daemon=True)
-        detection_thread.start()
+        #detection_thread = threading.Thread(target=self.run_detection_loop, daemon=True)
+        #detection_thread.start()
+        self.run_detection_loop()
+
+    def status(self,var,value):
+        self.status_vars[var].set(value)
 
     def run_detection_loop(self):
         try:
             # Start the conveyor and enable system components
             self.pins.start_high()
             self.pins.enable_low()
-            self.status_vars['system'].set("Enabled")
+            self.status('system',"Detection")
             thread = threading.Thread(target=self.stepper.run, daemon=True)
             thread.start()
             self.stepper.ena_low()
-            self.status_vars['conveyor'].set("Running")
-            self.status_vars['actuator'].set("Active")
-            self.pins.relay_activate()
-            self.status_vars['actuator'].set("Inactive")
+            self.status('conveyor',"Running")
+            self.status('actuator',"Active")
+            #self.pins.relay_activate()
+            self.after(4000) #temp
+            self.status('actuator',"Inactive")
 
             # Main detection loop
             while True:
+
                 dist = self.ultrasonic.distance
-                if dist < 1.0:
-                    self.status_vars['sensor'].set(round(dist, 2))
+                if dist < 1:
+                    self.status('sensor',round(dist, 2))
                     # Increment total cane counter
                     self.counter_vars[0].set(self.counter_vars[0].get() + 1)
 
                     # Build image filename
                     current_count = self.counter_vars[0].get()
                     self.imgname = f"{current_count}_cane.jpg"
-                    self.imgName.set(self.imgname)
 
                     # Capture image
                     self.cam.capture_image("images/" + self.imgname)
 
+                    #update display
+                    self.status('img',self.imgname)
+
                     # Reset and update system pins
                     self.pins.enable_low()
                     self.pins.reset_varPins()
-                    self.status_vars['variety'].set("None")
+                    self.status('variety',"None")
 
                     # Run ML detection (returns a variety as an integer, e.g., 1 to 5)
-                    self.var = self.ml.predict("images/" + self.imgname)
-
+                    #self.var = self.ml.predict("images/" + self.imgname)
+                    self.var = random.randint(1,5)
+                    
                     # Update variety counter
                     self.counter_vars[self.var].set(self.counter_vars[self.var].get() + 1)
-                    self.status_vars['variety'].set(str(self.var))
+                    self.status('variety',str(self.var))
 
                     # Activate output pins based on detected variety
                     self.pins.out_to_pins(self.var)
                     self.pins.enable_high()
 
-                    self.status_vars['actuator'].set("Active")
-                    self.pins.relay_activate()
-                    self.status_vars['actuator'].set("Inactive")
-
+                    self.status('actuator',"Active")
+                    self.update()
+                    #self.pins.relay_activate()
+                    self.after(4000)
+                    self.status('actuator',"Inactive")
+                    
                     # Buffer the detection event instead of immediate DB insertion
                     self.sequence += 1
                     detection_time = datetime.datetime.now().isoformat()
@@ -119,7 +122,7 @@ class DashboardPage(Frame):
 
                     # Reset sensor indicator for this cycle
                     self.counter_vars[6].set(0)
-                    self.status_vars['sensor'].set(0)
+                    self.status('sensor',0)
 
                 else:
                     # Increase the count for "no detection" cycles
@@ -176,14 +179,14 @@ if __name__ == "__main__":
     '''
     # Raspberry Pi integration methods
     def update_sensor_status(self, status):
-        status_vars['sensor'].set(status)
+        self.status_vars['sensor'].set(status)
     
     def update_variety(self, variety):
-        status_vars['variety'].set(variety)
+        self.status_vars['variety'].set(variety)
     
     def increment_counter(self, variety_index=0):
         """Increment counters (0 = total, 1-5 = specific varieties)"""
         if 0 <= variety_index <= 5:
-            counter_vars[variety_index].set(counter_vars[variety_index].get() + 1)
+            self.counter_vars[variety_index].set(self.counter_vars[variety_index].get() + 1)
         if variety_index != 0:
-            counter_vars[0].set(counter_vars[0].get() + 1)'''
+            self.counter_vars[0].set(self.counter_vars[0].get() + 1)'''
