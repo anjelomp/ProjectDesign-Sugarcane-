@@ -47,7 +47,7 @@ class DashboardPage(Frame):
 
             # Start a new session in the DB
             start_time = datetime.datetime.now().isoformat()
-            self.db.cursor.execute("INSERT INTO Session (session_name, start_time) VALUES (?, ?)",
+            self.db.cursor.execute("INSERT INTO Session (SessionName, StartTime) VALUES (?, ?)",
                                    ("Session A", start_time))
             self.db.conn.commit()
             self.session_id = self.db.cursor.lastrowid  # Get the session id for linking detections
