@@ -49,7 +49,6 @@ class UiPage(Frame):
         counter_vars.extend(counter)
 	
         status = {
-            'sensor': StringVar(value="Ready"),
             'variety': StringVar(value="-"),
             'conveyor': StringVar(value="Stopped"),
             'actuator': StringVar(value="Inactive"),
@@ -101,10 +100,9 @@ class UiPage(Frame):
         
         status_items = [
             ("Live Count", counter_vars[0], FONTS['large']),
-            ("Sensor Status", status_vars['sensor']),
             ("Detected Variety", status_vars['variety']),
             ("Conveyor", status_vars['conveyor']),
-            ("Actuator", status_vars['actuator']),
+            ("Hopper", status_vars['actuator']),
             ("System", status_vars['system']),
             ("", status_vars['prompt'])
         ]
@@ -160,10 +158,9 @@ class UiPage(Frame):
             
             status_items = [
                 ("Live Count", counter_vars[0], FONTS['large']),
-                ("Sensor Status", status_vars['sensor']),
                 ("Detected Variety", status_vars['variety']),
                 ("Conveyor", status_vars['conveyor']),
-                ("Actuator", status_vars['actuator']),
+                ("Hopper", status_vars['actuator']),
                 ("System", status_vars['system']),
                 ("", status_vars['prompt'])
             ]

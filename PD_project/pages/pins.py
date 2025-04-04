@@ -5,8 +5,8 @@ GPIO.setmode(GPIO.BCM)
 
 
 class Pins:
-    
-    def __init__(self, pin1, pin2, pin3, r1, r2, enable, start):
+    #Pins(varpin3, varpin2, varpin1, actuator1, actuator2, enable, start, ir)
+    def __init__(self, pin1, pin2, pin3, r1, r2, enable, start, ir):
         self.pin1 = pin1
         self.pin2 = pin2
         self.pin3 = pin3
@@ -14,6 +14,7 @@ class Pins:
         self.r2 = r2
         self.enable = enable
         self.start = start
+        self.ir = ir
         GPIO.setup(self.pin1, GPIO.OUT)
         GPIO.setup(self.pin2, GPIO.OUT)
         GPIO.setup(self.pin3, GPIO.OUT)
@@ -21,6 +22,8 @@ class Pins:
         GPIO.setup(self.r2, GPIO.OUT)
         GPIO.setup(self.enable, GPIO.OUT)
         GPIO.setup(self.start, GPIO.OUT)
+        GPIO.setup(self.ir, GPIO.IN)
+
 
     
     def all_pin_low(self):
@@ -77,7 +80,28 @@ class Pins:
         GPIO.output(self.r2, GPIO.LOW) 
         time.sleep(5)
         GPIO.output(self.r1, GPIO.LOW)
+        GPIO.output(self.r2, GPIO.LOW)
+
+    def loop(self, stat):
+        self.loop = stat
+        
+    def relay_loop(self):
+        while self.loop:
+            GPIO.output(self.r1, GPIO.LOW) 
+            GPIO.output(self.r2, GPIO.HIGH) 
+            time.sleep(5)
+            GPIO.output(self.r1, GPIO.HIGH) 
+            GPIO.output(self.r2, GPIO.LOW) 
+            time.sleep(5)
+
+    def act_extend(self):
+        GPIO.output(self.r1, GPIO.LOW) 
+        GPIO.output(self.r2, GPIO.HIGH) 
+
+    def act_close(self):
+        GPIO.output(self.r1, GPIO.HIGH) 
         GPIO.output(self.r2, GPIO.LOW) 
+
 
     def enable_low(self):
         GPIO.output(self.enable, GPIO.LOW)
@@ -88,3 +112,6 @@ class Pins:
         GPIO.output(self.start, GPIO.LOW)
     def start_high(self):
         GPIO.output(self.start, GPIO.HIGH)
+    
+    def readIR(self):
+        return GPIO.input(self.ir)

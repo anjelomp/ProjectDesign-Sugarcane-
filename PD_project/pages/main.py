@@ -11,33 +11,40 @@ from pins import Pins
 from stepper import Stepper
 from db import DbPage
 from ml import MachineLearning
+from timer import Timeout
 
 class DashboardPage(Frame):
-    def __init__(self,  *args, **kwargs):
-        super().__init__( *args, **kwargs)
-        
+
+
     def start(self,counter_vars,status_vars):
         self.counter_vars = counter_vars
         self.status_vars = status_vars
-
-        # data storage
-        self.detections = []
+        
         try:
             # Initialize hardware and components
-            # Pins(varpin3, varpin2, varpin1, actuator1, actuator2, enable, start)
-            #pins to arduino = varpin3, varpin2, varpin1, enable, start
-            self.pins = Pins(14, 15, 18, 27, 22, 23, 24)
+
+            #ena, dir, pul, speed
+            stepper_speed = 0.005
+            self.stepper = Stepper(11, 9, 10, stepper_speed)
+            # Pins(varpin3, varpin2, varpin1, actuator1, actuator2, enable, start, ir)
+            self.pins = Pins(14, 15, 18, 27, 22, 23, 24, 4)
             self.pins.all_pin_low()
-            self.stepper = Stepper(11, 9, 10)
-            self.ultrasonic = DistanceSensor(echo=17, trigger=4)
-            self.cam = Camera(0)
+            #camera
+            camera_index = 0
+            self.cam = Camera(camera_index)
             self.cam.start_camera()
-            self.db = DbPage()
-            self.db.setup()
-            self.ml = MachineLearning()
+
+            # Initialize ML
+            #self.ml = MachineLearning()
             #self.ml.setup()
 
+            #Timeout
+            self.timeout = Timeout()
+
             # Start a new session in the DB
+            self.db = DbPage()
+            self.db.setup()
+            self.detections = [] # data buffer storage
             start_time = datetime.datetime.now().isoformat()
             self.db.cursor.execute("INSERT INTO Session (SessionName, StartTime) VALUES (?, ?)",
                                    ("Session A", start_time))
@@ -45,39 +52,37 @@ class DashboardPage(Frame):
             self.session_id = self.db.cursor.lastrowid  # Get the session id for linking detections
             self.sequence = 0  # To track order within this session
 
-            self.after(0,self.status_vars['prompt'].set("Setup Successful"))
+
         except Exception as e:
             self.after(0,self.status_vars['prompt'].set(f"Error during setup: {e}"))
             return
-        # Start the main detection thread (to avoid blocking the GUI)
-        #detection_thread = threading.Thread(target=self.run_detection_loop, daemon=True)
-        #detection_thread.start()
+        
+
+        #run detection
         self.run_detection_loop()
 
-    def status(self,var,value):
-        self.status_vars[var].set(value)
 
     def run_detection_loop(self):
         try:
-            # Start the conveyor and enable system components
+
+            #arduino com
             self.pins.start_high()
-            self.pins.enable_low()
-            self.status('system',"Detection")
-            thread = threading.Thread(target=self.stepper.run, daemon=True)
+            self.ena_flag = True
+
+            #thread start
+            self.start_thread()
+            thread = threading.Thread(target=self.init_thread, daemon=True)
             thread.start()
-            self.stepper.ena_low()
+            self.timeout.start()
+
+            self.status('system',"Scanning")            
             self.status('conveyor',"Running")
-            self.status('actuator',"Active")
-            #self.pins.relay_activate()
-            self.after(4000) #temp
-            self.status('actuator',"Inactive")
+            self.status('actuator',"Feeding")
 
-            # Main detection loop
-            while True:
 
-                dist = self.ultrasonic.distance
-                if dist < 1:
-                    self.status('sensor',round(dist, 2))
+            while self.timeout.get() <= 10:
+
+                if self.pins.readIR():
                     # Increment total cane counter
                     self.counter_vars[0].set(self.counter_vars[0].get() + 1)
 
@@ -88,31 +93,20 @@ class DashboardPage(Frame):
                     # Capture image
                     self.cam.capture_image("images/" + self.imgname)
 
-                    #update display
-                    self.status('img',self.imgname)
-
-                    # Reset and update system pins
-                    self.pins.enable_low()
-                    self.pins.reset_varPins()
-                    self.status('variety',"None")
-
                     # Run ML detection (returns a variety as an integer, e.g., 1 to 5)
                     #self.var = self.ml.predict("images/" + self.imgname)
                     self.var = random.randint(1,5)
-                    
+
                     # Update variety counter
                     self.counter_vars[self.var].set(self.counter_vars[self.var].get() + 1)
-                    self.status('variety',str(self.var))
-
-                    # Activate output pins based on detected variety
+ 
+                    # Output to Arduino pins based on detected variety
                     self.pins.out_to_pins(self.var)
-                    self.pins.enable_high()
+                    self.signal_arduino()
 
-                    self.status('actuator',"Active")
-                    self.update()
-                    #self.pins.relay_activate()
-                    self.after(4000)
-                    self.status('actuator',"Inactive")
+                    #update display
+                    self.status('img',self.imgname)
+                    self.status('variety',str(self.var))
                     
                     # Buffer the detection event instead of immediate DB insertion
                     self.sequence += 1
@@ -120,9 +114,8 @@ class DashboardPage(Frame):
                     detection_record = (self.session_id, self.sequence, detection_time, "images/" + self.imgname, self.var)
                     self.detections.append(detection_record)
 
-                    # Reset sensor indicator for this cycle
-                    self.counter_vars[6].set(0)
-                    self.status('sensor',0)
+                    # Reset timeout indicator for this cycle
+                    self.timeout.reset()
 
                 else:
                     # Increase the count for "no detection" cycles
@@ -139,6 +132,17 @@ class DashboardPage(Frame):
                         self.pins.start_low()
                         self.status_vars['prompt'].set("No cane detected - Ending Session")
                         break  # End the loop if no cane detected for a while
+            #end threading
+            self.stop_thread()
+            self.pins.act_close()
+            self.timeout.stop()
+            self.cam.release()
+
+
+            self.status('system',"Stopped")            
+            self.status('conveyor',"Stopped")
+            self.status('actuator',"Stopped")            
+
 
             # End of session: batch insert buffered detection events
             if self.detections:
@@ -155,13 +159,35 @@ class DashboardPage(Frame):
                                    (end_time, self.session_id))
             self.db.conn.commit()
 
-            # Cleanup hardware
-            self.cam.release()
-            self.stepper.ena_high()
-            self.status_vars['conveyor'].set("Stopped")
-
+            
         except Exception as e:
             self.status_vars['prompt'].set(f"Error during detection: {e}")
+
+ 
+    def status(self,var,value):
+        self.status_vars[var].set(value)
+
+    def init_thread(self):
+        self.stepper.run()
+        self.pins.relay_loop()
+        self.timeout.timer_init()
+
+    def start_thread(self):
+        self.pins.loop = True
+        self.stepper.ena_low()
+
+    def stop_thread(self):
+        self.pins.loop = False
+        self.stepper.ena_high()
+
+    def signal_arduino(self):
+        if self.ena_flag:
+            self.pins.enable_high()
+            self.ena_flag = False
+        else:
+            self.pins.enable_low()
+            self.ena_flag = True
+
 
 if __name__ == "__main__":
     root = Tk()
@@ -190,3 +216,7 @@ if __name__ == "__main__":
             self.counter_vars[variety_index].set(self.counter_vars[variety_index].get() + 1)
         if variety_index != 0:
             self.counter_vars[0].set(self.counter_vars[0].get() + 1)'''
+    
+
+
+

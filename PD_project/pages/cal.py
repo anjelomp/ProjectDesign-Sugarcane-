@@ -15,20 +15,16 @@ GPIO.setwarnings(False)
 
 try:
 
-    #Pins(pin1, pin2, pin3, r1, r2, enable, start)
-    pins = Pins(18,15,14,27,22,23,24)
+    #Pins(pin1, pin2, pin3, r1, r2, enable, start, ir)
+    pins = Pins(18,15,14,27,22,23,24,4)
 
-
-    #motor pins/flags ena, dir, pul
-    stepper = Stepper(11,9,10)
-    
-    #ultrasonic
-    ultrasonic = DistanceSensor(echo=17, trigger=4)
+    #motor pins/flags ena, dir, pul, speed
+    stepperSpeed = 0.0005
+    stepper = Stepper(11,9,10,stepperSpeed)
 
     #camera setup
     cam = Camera(0)
     cam.start_camera()
-
 
     print("\n\nSetup Complete. Proceed?\n")
     input()  
@@ -39,6 +35,7 @@ except Exception as e:
 
 while True:
     try:
+        
         while True:
             print("-----------pins calibrate---------")
 
@@ -54,32 +51,24 @@ while True:
             print("var = 1")
             input()
 
+            pins.out_to_pins(2)
+            print("var = 2")
+            input()
+
+            pins.out_to_pins(3)
+            print("var = 3")
+            input()
+
+            pins.out_to_pins(4)
+            print("var = 4")
+            input()
+
             pins.out_to_pins(5)
             print("var = 5")
             input()
 
-            pins.out_to_pins(1)
-            print("var = 1")
-            input()
-
-            pins.out_to_pins(2)
-            print("var = 2")
-            input()
-            
-            pins.out_to_pins(1)
-            print("var = 1")
-            input()
-
             pins.reset_varPins()
             print("reset var")
-            input()
-
-            print("relay activate")
-            pins.relay_activate()
-            input()
-
-            print("relay low")
-            pins.relay_low()
             input()
 
             pins.enable_high()
@@ -98,10 +87,50 @@ while True:
             print("start_low")
             input()
 
-            ans = input('exit? y /n\n')
+            ans = input('Repeat? y/n\n')
 
-            if ans == "y":
+            if ans == "n":
                 break
+
+
+        while True:
+            print("-----------actuator calibrate---------")
+
+            ans = input("proceed? y/n\n")
+            if ans == "n":
+                break
+
+            print("relay activate")
+            pins.relay_activate()
+            input()
+
+            print("relay low")
+            pins.relay_low()
+            input()
+
+            ans = input('repeat? y /n\n')
+
+            if ans == "n":
+                break
+            
+        while True:
+
+            print("-----------ir sensor---------")
+
+            ans = input("proceed? y/n\n")
+            if ans == "n":
+                break
+
+            for i in range(20):
+
+                print(pins.readIR())
+                time.sleep(1)    
+
+            ans = input('repeat? y/n\n')
+
+            if ans == "n":
+                break
+
 
         while True:
 
@@ -111,7 +140,7 @@ while True:
             if ans == "n":
                 break
 
-            print("stepper run, ena low")
+            print("stepper run, ena low\n stepper speed: "+str(stepperSpeed))
             thread = threading.Thread(target=stepper.run, daemon=True)
             thread.start()
             stepper.ena_low()
@@ -137,27 +166,11 @@ while True:
             input()
 
 
-            ans = input('exit? y /n\n')
+            ans = input('Repeat? y /n\n')
 
-            if ans == "y":
-                break
-
-        while True:
-
-            print("-----------ultrasonic---------")
-
-            ans = input("proceed? y/n")
             if ans == "n":
                 break
-            for i in range(20):
 
-                print(ultrasonic.distance)
-                time.sleep(1)    
-
-            ans = input('exit? y /n\n')
-
-            if ans == "y":
-                break
 
         while True:
             print("-----------camera---------")
@@ -166,9 +179,9 @@ while True:
                 break
             cam.capture_image("test.jpg")
 
-            ans = input('exit? y /n\n')
+            ans = input('Repeat? y/n\n')
 
-            if ans == "y":
+            if ans == "n":
                 break
 
     except Exception as e:

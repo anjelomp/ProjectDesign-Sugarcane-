@@ -6,10 +6,11 @@ GPIO.setmode(GPIO.BCM)
 
 class Stepper:
     
-    def __init__(self, ena, dirc, pul):
+    def __init__(self, ena, dirc, pul,speed):
         self.ena = ena
         self.dirc = dirc
         self.pul = pul
+        self.speed  = speed
         GPIO.setup(self.ena, GPIO.OUT)
         GPIO.setup(self.dirc, GPIO.OUT)
         GPIO.setup(self.pul, GPIO.OUT)
@@ -17,9 +18,9 @@ class Stepper:
     def run(self):
         while True:
             GPIO.output(self.pul, GPIO.HIGH)
-            time.sleep(0.0005)
+            time.sleep(self.speed)
             GPIO.output(self.pul, GPIO.LOW)
-            time.sleep(0.0005)
+            time.sleep(self.speed)
 
     def dir_low(self):
         GPIO.output(self.dirc, GPIO.LOW)
