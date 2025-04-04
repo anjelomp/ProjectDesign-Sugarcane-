@@ -25,9 +25,10 @@ class MachineLearning:
         predictions = self.model.predict(img_array)
         predicted_class = np.argmax(predictions, axis=1)[0]  # Get class with highest probability
         return predicted_class
+'''
 try:
     MachineLearning.setup()
 except Exception as e:
     print(f"Error during setup: {e}")   
-
+'''
         

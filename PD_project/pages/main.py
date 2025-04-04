@@ -80,7 +80,7 @@ class DashboardPage(Frame):
             self.status('actuator',"Feeding")
 
 
-            while self.timeout.get() <= 10:
+            while not self.timeout.get() <= 10:
 
                 if self.pins.readIR():
                     # Increment total cane counter

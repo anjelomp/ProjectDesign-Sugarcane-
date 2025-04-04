@@ -8,6 +8,7 @@ from stepper import Stepper
 from gpiozero import DistanceSensor
 from pins import Pins
 from camera import Camera
+from stepact import StepAct
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
@@ -17,10 +18,14 @@ try:
 
     #Pins(pin1, pin2, pin3, r1, r2, enable, start, ir)
     pins = Pins(18,15,14,27,22,23,24,4)
+    
 
     #motor pins/flags ena, dir, pul, speed
     stepperSpeed = 0.0005
     stepper = Stepper(11,9,10,stepperSpeed)
+
+    #stepact
+    stepact = StepAct(11,9,10,stepperSpeed,27,22)
 
     #camera setup
     cam = Camera(0)
@@ -170,6 +175,24 @@ while True:
 
             if ans == "n":
                 break
+
+        while True:
+
+            print("-----------stepact calibrate---------")
+
+            ans = input("proceed? y/n\n")
+            if ans == "n":
+                break
+            
+            print("stepper actuator running")
+            stepact.loop(True)
+            stepact.run()
+            input()
+
+            print("Stoped")
+            stepact.loop(False)
+            stepact.act_extend()
+            input()
 
 
         while True:
