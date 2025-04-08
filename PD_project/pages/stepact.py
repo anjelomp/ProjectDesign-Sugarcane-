@@ -18,36 +18,31 @@ class StepAct:
         GPIO.setup(self.dirc, GPIO.OUT)
         GPIO.setup(self.pul, GPIO.OUT)
 
-    def loop(self, stat):
+    def start(self, stat):
         self.loop = stat
         
-    
     def run(self):
-        GPIO.output(self.r1, GPIO.LOW) 
-        GPIO.output(self.r2, GPIO.HIGH) 
-        self.r1, self.r2 = self.r2, self.r1
-        tTime = 0
-
+        GPIO.output(self.r2, GPIO.LOW) 
+        GPIO.output(self.r1, GPIO.HIGH) 
+        i = 0
         while self.loop:
             GPIO.output(self.pul, GPIO.HIGH)
             time.sleep(self.speed)
-            
-            tTime += self.speed
-            if tTime == 5:
-                GPIO.output(self.r1, GPIO.LOW) 
-                GPIO.output(self.r2, GPIO.HIGH) 
-                self.r1, self.r2 = self.r2, self.r1
-                tTime = 0
-            
+            i += self.speed
+            if (i>4):
+               self.r1, self.r2 = self.r2, self.r1
+               i=0 
+               GPIO.output(self.r2, GPIO.LOW) 
+               GPIO.output(self.r1, GPIO.HIGH) 
+
             GPIO.output(self.pul, GPIO.LOW)
             time.sleep(self.speed)
-
-            tTime += self.speed
-            if tTime == 5:
-                GPIO.output(self.r1, GPIO.LOW) 
-                GPIO.output(self.r2, GPIO.HIGH) 
-                self.r1, self.r2 = self.r2, self.r1
-                tTime = 0
+            i += self.speed
+            if (i>4):
+               self.r1, self.r2 = self.r2, self.r1
+               i=0 
+               GPIO.output(self.r2, GPIO.LOW) 
+               GPIO.output(self.r1, GPIO.HIGH) 
 
     def act_extend(self):
         GPIO.output(self.r1, GPIO.LOW) 

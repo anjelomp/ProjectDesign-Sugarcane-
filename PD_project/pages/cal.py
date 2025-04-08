@@ -184,13 +184,23 @@ while True:
             if ans == "n":
                 break
             
-            print("stepper actuator running")
-            stepact.loop(True)
-            stepact.run()
+            print("actuator extend, setup")
+            stepact.start(False)
+            stepact.act_extend()
+            stepact.dir_low()
+            stepact.ena_low()
             input()
 
+            
+            print("stepper actuator running")
+            stepact.start(True)
+            thread = threading.Thread(target=stepact.run, daemon=True)
+            thread.start()
+            input()
+            
+
             print("Stoped")
-            stepact.loop(False)
+            stepact.start(False)
             stepact.act_extend()
             input()
 
