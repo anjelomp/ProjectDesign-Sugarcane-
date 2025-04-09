@@ -117,7 +117,8 @@ class DashboardPage(Frame):
                     # Buffer the detection event instead of immediate DB insertion
                     self.sequence += 1
                     detection_time = datetime.datetime.now().isoformat()
-                    detection_record = (self.session_id, self.sequence, detection_time, "images/" + self.imgname, self.var)
+                    # detection_record = (self.session_id, self.sequence, detection_time, "images/" + self.imgname, self.var)
+                    detection_record = (self.session_id, self.sequence, detection_time, self.imgname, self.var)
                     self.detections.append(detection_record)
 
                     # Reset sensor indicator for this cycle
