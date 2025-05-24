@@ -4,7 +4,8 @@ import sqlite3
 
 
 # Importing the DashboardPage, ReportsPage, and HelpPage classes
-from main import DashboardPage
+#from main import DashboardPage
+from home import HomePage
 from reports import ReportsPage
 from frontEnd import UiPage
 #from setup import SetupPage
@@ -52,7 +53,7 @@ class CaneCheckMain(tk.Frame):
 
                 
         # Action buttons
-        pages = ["Dashboard","Reports"]  # Page names
+        pages = ["Dashboard","Scan"]  # Page names
         self.pages = {}  # Dictionary to hold page instances
 
         rownum = 1
@@ -83,9 +84,9 @@ class CaneCheckMain(tk.Frame):
             rownum +=1
             
         # Create and add pages to the dictionary
-        self.pages["Dashboard"] = UiPage(self)
+        self.pages["Dashboard"] = HomePage(self)
         #self.pages["Setup"] = SetupPage(self)
-        self.pages["Reports"] = ReportsPage(self)
+        self.pages["Scan"] = UiPage(self)
         
 
         # Show the initial page

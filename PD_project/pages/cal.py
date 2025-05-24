@@ -15,21 +15,17 @@ GPIO.setwarnings(False)
 
 
 try:
+    #Pins(varpin1, varpin2, varpin3, enable, start, conveyor, magnetic door, feeder)
 
-    #Pins(pin1, pin2, pin3, r1, r2, enable, start, ir)
-    pins = Pins(18,15,14,27,22,23,24,4)
+    pins = Pins(25,8,7, 23,24, 14,15, 12)
     
 
-    #motor pins/flags ena, dir, pul, speed
-    stepperSpeed = 0.0005
-    stepper = Stepper(11,9,10,stepperSpeed)
-
-    #stepact
-    stepact = StepAct(11,9,10,stepperSpeed,27,22)
-
     #camera setup
+ 
+ 
     cam = Camera(0)
     cam.start_camera()
+
 
     print("\n\nSetup Complete. Proceed?\n")
     input()  
@@ -42,7 +38,7 @@ while True:
     try:
         
         while True:
-            print("-----------pins calibrate---------")
+            print("-----------r1 pins---------")
 
             ans = input("proceed? y/n\n")
             if ans == "n":
@@ -76,14 +72,6 @@ while True:
             print("reset var")
             input()
 
-            pins.enable_high()
-            print("enable high")
-            input()
-
-            pins.enable_low()
-            print("enable low")
-            input()
-
             pins.start_high()
             print("start high")
             input()
@@ -99,28 +87,8 @@ while True:
 
 
         while True:
-            print("-----------actuator calibrate---------")
 
-            ans = input("proceed? y/n\n")
-            if ans == "n":
-                break
-
-            print("relay activate")
-            pins.relay_activate()
-            input()
-
-            print("relay low")
-            pins.relay_low()
-            input()
-
-            ans = input('repeat? y /n\n')
-
-            if ans == "n":
-                break
-            
-        while True:
-
-            print("-----------ir sensor---------")
+            print("-----------sensor---------")
 
             ans = input("proceed? y/n\n")
             if ans == "n":
@@ -128,7 +96,9 @@ while True:
 
             for i in range(20):
 
+                print("IR | Door")
                 print(pins.readIR())
+                print(pins.readDoor())
                 time.sleep(1)    
 
             ans = input('repeat? y/n\n')
@@ -139,83 +109,25 @@ while True:
 
         while True:
 
-            print("-----------stepper calibrate---------")
+            print("-----------feeder---------")
 
             ans = input("proceed? y/n\n")
             if ans == "n":
                 break
 
-            print("stepper run, ena low\n stepper speed: "+str(stepperSpeed))
-            thread = threading.Thread(target=stepper.run, daemon=True)
-            thread.start()
-            stepper.ena_low()
+            print("Feeder Running")
+            pins.feeder_start()
             input()
 
-            print("stepper run, ena high")
-            stepper.ena_high()
+            print("Feeder Stop")
+            pins.feeder_stop()
             input()
-
-            print("stepper run, ena low,  dir low")
-            stepper.dir_low()
-            stepper.ena_low()
-            input()
-
-            print("stepper run, dir high")
-            stepper.ena_high()
-            stepper.dir_high()
-            stepper.ena_low()
-            input()
-
-            print("stepper run, ena high")
-            stepper.ena_high()
-            input()
-
 
             ans = input('Repeat? y /n\n')
 
             if ans == "n":
                 break
 
-        while True:
-
-            print("-----------stepact calibrate---------")
-
-            ans = input("proceed? y/n\n")
-            if ans == "n":
-                break
-            
-            print("actuator extend, setup")
-            stepact.start(False)
-            stepact.act_extend()
-            stepact.dir_low()
-            stepact.ena_low()
-            input()
-
-            
-            print("stepper actuator running")
-            stepact.start(True)
-            thread = threading.Thread(target=stepact.run, daemon=True)
-            thread.start()
-            input()
-            
-
-            print("Stoped")
-            stepact.start(False)
-            stepact.act_extend()
-            input()
-
-
-        while True:
-            print("-----------camera---------")
-            ans = input("proceed? y/n\n")
-            if ans == "n":
-                break
-            cam.capture_image("test.jpg")
-
-            ans = input('Repeat? y/n\n')
-
-            if ans == "n":
-                break
 
     except Exception as e:
         print(f"error. {e}")

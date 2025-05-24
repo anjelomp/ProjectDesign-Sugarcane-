@@ -5,13 +5,15 @@ import tkinter as tk
 import random
 
 from tkinter import Frame, Tk
-from gpiozero import DistanceSensor
 from camera import Camera
 from pins import Pins
+from queues import Varqueue
 from stepper import Stepper
+from stepact import StepAct
 from db import DbPage
 from ml import MachineLearning
-from timer import Timeout
+
+queue = []
 
 class DashboardPage(Frame):
 
@@ -23,24 +25,25 @@ class DashboardPage(Frame):
         try:
             # Initialize hardware and components
 
-            #ena, dir, pul, speed
-            stepper_speed = 0.005
-            self.stepper = Stepper(11, 9, 10, stepper_speed)
-            # Pins(varpin3, varpin2, varpin1, actuator1, actuator2, enable, start, ir)
-            self.pins = Pins(14, 15, 18, 27, 22, 23, 24, 4)
-            self.pins.all_pin_low()
-            #camera
-            camera_index = 0
-            self.cam = Camera(camera_index)
-            self.cam.start_camera()
+            #Pins(varpin1, varpin2, varpin3, enable, start, conveyor, magnetic door, feeder)
 
+            self.pins = Pins(25,8,7, 23,24, 14,15, 12)
+            self.pins.all_pin_low()
+
+            #camera setup
+            self.cam = Camera(0)
+            self.cam.start_camera()
+            
             # Initialize ML
             #self.ml = MachineLearning()
             #self.ml.setup()
 
             #Timeout
-            self.timeout = Timeout()
-
+            self.timeout = 0
+            
+            #queue
+            self.queues = Varqueue()
+            
             # Start a new session in the DB
             self.db = DbPage()
             self.db.setup()
@@ -61,30 +64,34 @@ class DashboardPage(Frame):
         #run detection
         self.run_detection_loop()
 
-
     def run_detection_loop(self):
         try:
+            #temp-for testing
+            self.var = 1
+            self.test = [1,2,1,3]
+            self.index = 0
 
             #arduino com
             self.pins.start_high()
-            self.ena_flag = True
+            self.pins.feeder_start()
 
-            #thread start
-            self.start_thread()
-            thread = threading.Thread(target=self.init_thread, daemon=True)
+            thread = threading.Thread(target=self.queues.loop, daemon=True)
             thread.start()
-            self.timeout.start()
+
+
 
             self.status('system',"Scanning")            
             self.status('conveyor',"Running")
             self.status('actuator',"Feeding")
 
 
-            while not self.timeout.get() <= 10:
-
-                if self.pins.readIR():
+            while self.timeout <= 2000000:
+                
+                
+                if not self.pins.readIR():
                     # Increment total cane counter
                     self.counter_vars[0].set(self.counter_vars[0].get() + 1)
+
 
                     # Build image filename
                     current_count = self.counter_vars[0].get()
@@ -92,17 +99,25 @@ class DashboardPage(Frame):
 
                     # Capture image
                     self.cam.capture_image("images/" + self.imgname)
-
+                    #self.update_var_pins()
+                    
                     # Run ML detection (returns a variety as an integer, e.g., 1 to 5)
                     #self.var = self.ml.predict("images/" + self.imgname)
-                    self.var = random.randint(1,5)
+                    #self.var = random.randint(1,5)
+                    self.var = self.test[self.index]
+                    if self.index == 3:
+                        self.index = 0
+                    else:
+                        self.index += 1
 
+                    
                     # Update variety counter
                     self.counter_vars[self.var].set(self.counter_vars[self.var].get() + 1)
- 
-                    # Output to Arduino pins based on detected variety
-                    self.pins.out_to_pins(self.var)
-                    self.signal_arduino()
+                    
+                    #add to queue
+                    
+                    self.queues.add(self.var)
+                                                                
 
                     #update display
                     self.status('img',self.imgname)
@@ -115,31 +130,23 @@ class DashboardPage(Frame):
                     self.detections.append(detection_record)
 
                     # Reset timeout indicator for this cycle
-                    self.timeout.reset()
-
+                    self.timeout = 0
+                    while not self.pins.readIR():
+                        pass
+                    self.after(1000)
                 else:
-                    # Increase the count for "no detection" cycles
-                    self.counter_vars[6].set(self.counter_vars[6].get() + 1)
+                    delay = 500  
+                    self.after(delay)
+                    self.timeout += delay
+                    #self.update_var_pins()
 
-                    if self.counter_vars[6].get() == 5:
-                        self.status_vars['actuator'].set("Active")
-                        self.pins.relay_activate()
-                        self.status_vars['actuator'].set("Inactive")
-                        self.status_vars['prompt'].set("No cane detected.")
-                        self.after(2000)  # Pause for 2 seconds
-
-                    if self.counter_vars[6].get() >= 10:
-                        self.pins.start_low()
-                        self.status_vars['prompt'].set("No cane detected - Ending Session")
-                        break  # End the loop if no cane detected for a while
             #end threading
-            self.stop_thread()
-            self.pins.act_close()
-            self.timeout.stop()
             self.cam.release()
+            self.stepact.start(False)
+            self.stepact.act_extend()
+            self.stepact.ena_high()
 
-
-            self.status('system',"Stopped")            
+            self.status('system',"No Cane Detected")            
             self.status('conveyor',"Stopped")
             self.status('actuator',"Stopped")            
 
@@ -155,7 +162,7 @@ class DashboardPage(Frame):
 
             # Update session end time
             end_time = datetime.datetime.now().isoformat()
-            self.db.cursor.execute("UPDATE Session SET end_time = ? WHERE session_id = ?",
+            self.db.cursor.execute("UPDATE Session SET EndTime = ? WHERE session_id = ?",
                                    (end_time, self.session_id))
             self.db.conn.commit()
 
@@ -166,19 +173,6 @@ class DashboardPage(Frame):
  
     def status(self,var,value):
         self.status_vars[var].set(value)
-
-    def init_thread(self):
-        self.stepper.run()
-        self.pins.relay_loop()
-        self.timeout.timer_init()
-
-    def start_thread(self):
-        self.pins.loop = True
-        self.stepper.ena_low()
-
-    def stop_thread(self):
-        self.pins.loop = False
-        self.stepper.ena_high()
 
     def signal_arduino(self):
         if self.ena_flag:
